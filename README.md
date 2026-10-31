@@ -1,5 +1,7 @@
 # Report Navigator — Sloths
 
+[Live demo](https://sloths-report-navigator.streamlit.app)
+
 Offline question answering over government statistics PDFs, with exact integer
 answers, physical-page citations and selective OCR. The Streamlit frontend is
 being developed separately. V2 does not include a local Gemma model.

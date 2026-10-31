@@ -29,7 +29,8 @@ Run from the project directory with Python 3.11 and installed requirements:
 
 ## Validation and fidelity ledger
 
-121 backend/frontend tests passed (112 prior tests plus nine frontend cases).
+122 backend/frontend tests passed (112 backend tests plus ten frontend cases).
+The ten frontend cases were rechecked after the static icon fix.
 Ruff basic/import checks and formatting passed after fixing import order.
 The IAB API failed with an unavailable-browser-interface error, so visual and
 functional checks used local Playwright Chromium with an existing browser binary.
@@ -72,9 +73,10 @@ live tests established configured Gemma access using synthetic evidence.
 - Hosted mode requires internet and sends the question/retrieved evidence to
   Google. It is explicitly labelled as separate from offline scoring. There is
   no automatic fallback and no claim of Gemma prize eligibility.
-- The app is tested locally, not yet deployed to Streamlit Community Cloud.
-  Resource limits, Linux OCR behavior and concurrent upload workloads require
-  deployment verification. Public hosted usage could consume the account quota;
+- The app is deployed at https://sloths-report-navigator.streamlit.app on
+  Python 3.11. Anonymous access, native offline answers, Linux OCR and hosted
+  Gemma passed synthetic end-to-end checks. Full-report concurrent workloads
+  and organizer sandbox resource limits have not been verified. Public hosted usage could consume the account quota;
   access/usage policy should be decided before a broad public launch.
 - Unexpected errors show generic safe messages. For deliberate BackendError,
   only its safe message is displayed; raw exceptions/credentials are not shown.
@@ -84,3 +86,38 @@ live tests established configured Gemma access using synthetic evidence.
   explicit Retry opening report action instead of retrying on every rerun.
 - The V4 cache fingerprint changes require a fresh load after a backend update.
   Restart the app and re-upload when updating an already-running process.
+
+
+## Refinement after deployment
+
+The user requested a more appealing but simple interface. app.py now arranges
+upload and mode selection in one setup area. An initial presentation-only rerun
+collapses report settings after successful ingestion, bringing answers and the
+PDF into view; the existing load-attempt guard prevents re-ingestion. Removing
+an upload restores the landing. A new AppTest covers that transition and a real
+browser test verifies uploader persistence, reopening settings and removal.
+
+ui/views.py adds a small document mark and a centered headline with a teal source
+accent. Streamlit sanitizes inline SVG, so ui/document.svg is rendered through a
+static image data URI, preserving the sanitizer. ui/styles.css was consolidated
+into one token-based stylesheet, with a pale setup surface, two desktop columns,
+three workflow columns and stacked mobile controls. No backend behavior changed.
+
+A fresh development process was used to avoid cached imported UI modules. Browser
+checks confirmed the icon loads, the accent is rgb(39,108,100), no horizontal
+mobile overflow, collapsed setup, correct answer 83 with page 1, and restored
+landing after removal. Desktop 1505x1045 and mobile 390x844 screenshots were
+compared with the revised generated concept using view_image. Header/icon,
+headline hierarchy, white/navy/teal palette, setup grouping, workflow dividers,
+spacing, native controls and mobile stacking were inspected. The installed
+Streamlit uploader and font rendering remain explicit native-widget deviations.
+The visible headline, intro and workflow titles match; safety/disclosure copy
+explains actual supported behavior. No fake charts, metrics or report data were
+added to the product.
+
+Accuracy was rechecked on the 50 supplied development questions: exact match,
+citation accuracy and composite score 1.00, hallucination rate 0/5 on absent
+questions. Runtime 64.89 seconds, 260/272 pages indexed. These are in-sample
+results, not hidden-report accuracy. Dense scanned reports still have documented
+failures, including misread digits. Generated QA PDFs and outputs are excluded
+from source releases. Deployment secrets remain outside GitHub.
