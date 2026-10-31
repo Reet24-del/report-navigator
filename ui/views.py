@@ -1,28 +1,40 @@
 """Native Streamlit controls; only our static design markup uses HTML."""
 
+from base64 import b64encode
+from pathlib import Path
+
 import streamlit as st
 
 from backend import BackendError
 from ui.session import ask_question
 
+DOCUMENT_ICON = "data:image/svg+xml;base64," + b64encode(
+    Path(__file__).with_name("document.svg").read_bytes()
+).decode("ascii")
+
 
 def header():
+    # Streamlit strips inline SVG; a static image keeps its HTML sanitizer intact.
     st.html(
-        '<header class="rn-header"><span class="rn-brand">Report Navigator</span><span class="rn-team">Sloths</span></header>'
+        '<header class="rn-header"><span class="rn-brand">'
+        f'<img class="rn-brand-icon" src="{DOCUMENT_ICON}" alt="">'
+        'Report Navigator</span><span class="rn-team">Sloths</span></header>'
     )
 
 
 def hero():
     st.html(
-        '<section class="rn-hero"><h1>Find the figure.<br>Keep the source.</h1><p>Ask questions of long reports. Get answers you can trace to the page.</p></section>'
+        '<section class="rn-hero"><h1>Find the figure.<br>Keep the '
+        "<span>source.</span></h1><p>Ask questions of long reports. "
+        "Get answers you can trace to the page.</p></section>"
     )
 
 
 def steps():
     st.html("""<section class="rn-steps">
-    <div><div class="rn-step-number">01</div><h3>Upload your PDF</h3><p>Add a government report or another long document. PDFs up to 50 MB.</p></div>
-    <div><div class="rn-step-number">02</div><h3>Ask a precise question</h3><p>For offline answers, name one count, an entity and a year.</p></div>
-    <div><div class="rn-step-number">03</div><h3>Check the source page</h3><p>Open the cited page and inspect the evidence behind the answer.</p></div>
+    <div class="rn-step"><div class="rn-step-number">01</div><h3>Upload your PDF</h3><p>Add a government report or another long document. PDFs up to 50 MB.</p></div>
+    <div class="rn-step"><div class="rn-step-number">02</div><h3>Ask a precise question</h3><p>For offline answers, name one count, an entity and a year.</p></div>
+    <div class="rn-step"><div class="rn-step-number">03</div><h3>Check the source page</h3><p>Open the cited page and inspect the evidence behind the answer.</p></div>
     </section>""")
 
 
@@ -32,7 +44,6 @@ def footer():
 
 def workspace(navigator):
     info = navigator.report_info
-    st.divider()
     st.subheader("Your report")
     st.text(info.filename)
     st.caption(
