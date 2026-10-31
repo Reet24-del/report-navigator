@@ -28,3 +28,25 @@
 9. **Compatibility.** Streamlit can continue importing load_report from backend.
    The implementation now lives in src/report_navigator to follow the guide.
    Offline ask returns a numeric answer with a source, rather than an LLM essay.
+
+## V3 — bounded hosted diagnostics, offline scoring preserved
+
+The approved V3 scope improves only the optional hosted Gemma demo and its
+failure diagnosis. Google documents gemma-4-26b-a4b-it and gemma-4-31b-it on the
+Gemini API (https://ai.google.dev/gemma/docs/core/gemma_on_gemini_api). The first
+is retained; there is no silent substitution with Gemini or another Gemma model.
+
+BackendError now carries optional numeric HTTP status while keeping raw provider
+exceptions private. The application owns all retries: SDK retries stay disabled,
+with exponential backoff plus jitter for transport errors and server failures.
+The default two-call budget includes citation repair; configuration permits at
+most three. Each real SDK call is clipped to the remaining 45-second default
+answer deadline. 429 is deliberately not automatically retried because current
+safe error mapping cannot reliably distinguish depleted quota from temporary
+rate limiting. Permanent client errors also stop immediately.
+
+The diagnostic progressively tests four request profiles with synthetic evidence
+only, stopping on failure and validating the final answer and quotation. It is
+explicitly invoked and is not part of offline evaluation or normal unit tests.
+This version adds neither local model weights nor vision, retrieval changes,
+embeddings, vector databases, or automatic cloud fallback in the scorer.
