@@ -136,3 +136,45 @@ def test_workspace_answer_persists_on_page_rerun(monkeypatch):
     app.number_input[0].set_value(1).run()
     assert not app.exception
     assert nav.ask.call_count == 1
+
+
+def test_setup_transition_does_not_reload_report_and_removal_restores_landing(
+    monkeypatch,
+):
+    import pymupdf
+    import streamlit as st
+
+    import ui.session
+
+    with pymupdf.open() as document:
+        page = document.new_page()
+        page.insert_text((30, 30), "Invented source")
+        png = page.get_pixmap().tobytes("png")
+    nav = fake_navigator()
+    nav.report_info = SimpleNamespace(
+        filename="synthetic.pdf",
+        searchable_pages=2,
+        page_count=2,
+        ocr_pages=0,
+        warnings=(),
+    )
+    nav.render_page = Mock(return_value=png)
+    source = {
+        "upload": SimpleNamespace(name="synthetic.pdf", getvalue=lambda: b"invented")
+    }
+    loader = Mock(return_value=nav)
+    monkeypatch.setattr(st, "file_uploader", lambda *args, **kwargs: source["upload"])
+    monkeypatch.setattr(ui.session, "load_report", loader)
+    app = AppTest.from_file(Path(__file__).resolve().parents[1] / "app.py").run(
+        timeout=20
+    )
+    assert not app.exception
+    assert loader.call_count == 1
+    assert not app.expander[0].proto.expanded
+    app.run()
+    assert loader.call_count == 1
+    source["upload"] = None
+    app.run()
+    assert not app.exception
+    assert app.expander[0].proto.expanded
+    assert "rn_navigator" not in app.session_state
