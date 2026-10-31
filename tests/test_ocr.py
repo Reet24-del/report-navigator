@@ -2,9 +2,10 @@
 
 import pymupdf
 import pytest
+from test_tables import make_grid_pdf
+
 from backend import BackendError, Settings, load_report
 from src.report_navigator.ocr import needs_ocr, recognize_page
-from test_tables import make_grid_pdf
 
 
 def test_rasterized_table_is_searchable_and_answerable(tmp_path):
@@ -101,3 +102,128 @@ def test_scanned_multilevel_headers_select_the_requested_year(tmp_path):
         ).answer
         == "NOT_FOUND"
     )
+
+
+@pytest.mark.parametrize("dense", [False, True])
+def test_wrapped_entities_stay_in_physical_grid_row(tmp_path, dense):
+    from scripts.benchmark_scans import make_case
+
+    pdf, questions = make_case(wrapped=True, dense=dense)
+    nav = load_report(pdf, "wrapped.pdf", settings=Settings(cache_dir=tmp_path))
+    for question, expected in questions:
+        result = nav.predict(question)
+        assert result.answer == expected
+        assert result.page == (None if expected == "NOT_FOUND" else 1)
+
+
+def test_timeout_retains_completed_first_pass(monkeypatch):
+    import json
+    import subprocess
+    from pathlib import Path
+
+    def timeout(command, **kwargs):
+        destination = Path(command[command.index("--worker-output") + 1])
+        destination.write_text(
+            json.dumps(
+                {
+                    "words": [[1, 2, 3, 4, "North", 0, 0, 0]],
+                    "blocks": [[1, 2, 3, 4, "North", 0, 0]],
+                }
+            )
+        )
+        assert kwargs["timeout"] <= 2
+        raise subprocess.TimeoutExpired(command, 2)
+
+    monkeypatch.setattr("src.report_navigator.ocr.subprocess.run", timeout)
+    with pymupdf.open(stream=make_grid_pdf(scanned=True), filetype="pdf") as doc:
+        payload = recognize_page(doc[0], Settings(), 2)
+    assert payload["recovery_timed_out"]
+    assert payload["words"][0][4] == "North"
+
+
+def test_real_crop_ocr_recovers_merged_first_pass_without_guessing():
+    import time
+
+    import numpy as np
+
+    from scripts.benchmark_scans import make_case
+    from src.report_navigator.ocr import recover_regions
+    from src.report_navigator.table_quality import line_centers, numeric_cells
+
+    pdf, _ = make_case(wrapped=True)
+    settings = Settings()
+    with pymupdf.open(stream=pdf, filetype="pdf") as doc:
+        page = doc[0]
+        payload = recognize_page(page, settings, 25)
+        pix = page.get_pixmap(dpi=300, colorspace=pymupdf.csRGB, alpha=False)
+        pixels = (
+            np.frombuffer(pix.samples, dtype=np.uint8)
+            .reshape(pix.height, pix.width, 3)
+            .copy()
+        )
+        dark = pixels.mean(2) < 90
+        rows = line_centers(np.flatnonzero(dark.mean(1) > 0.6))
+        cols = line_centers(np.flatnonzero(dark.mean(0) > 0.3))
+        row = [w for w in payload["words"] if 110 < (w[1] + w[3]) / 2 < 160]
+        nums = [w for w in row if w[4].isdigit()]
+        assert len(nums) == 3
+        nums.sort(key=lambda w: w[0])
+        # Fault injection simulates one first-pass token spanning two cells.
+        merged = (
+            nums[0][0],
+            nums[0][1],
+            nums[1][2],
+            nums[0][3],
+            nums[0][4] + nums[1][4],
+            0,
+            0,
+            0,
+        )
+        original = [w for w in payload["words"] if w not in nums[:2]] + [merged]
+        recovered, attempts = recover_regions(
+            original,
+            pixels,
+            rows,
+            cols,
+            page.rect,
+            str(settings.tessdata_dir),
+            300,
+            1,
+            time.monotonic() + 10,
+        )
+        assert attempts == 1
+        mapped_cols = [x / pix.width * page.rect.width for x in cols]
+        recovered_row = [w for w in recovered if 110 < (w[1] + w[3]) / 2 < 160]
+        assert numeric_cells(recovered_row, mapped_cols) == {
+            1: "731",
+            2: "83",
+            3: "957",
+        }
+        unchanged, attempts = recover_regions(
+            original,
+            pixels,
+            rows,
+            cols,
+            page.rect,
+            str(settings.tessdata_dir),
+            300,
+            0,
+            time.monotonic() + 10,
+        )
+        assert attempts == 0
+        assert unchanged == original
+
+
+def test_prose_evidence_uses_accepted_recovery_words():
+    from src.report_navigator.ocr import blocks_from_words
+
+    words = [
+        (5, 10, 40, 20, "North", 0, 0, 0),
+        (110, 10, 125, 20, "73", 0, 0, 0),
+        (160, 10, 180, 20, "91", 0, 0, 0),
+    ]
+    blocks = blocks_from_words(words)
+    assert len(blocks) == 1
+    assert blocks[0][4] == "North 73 91"
+    assert blocks[0][:4] == (5, 10, 180, 20)
+    assert blocks_from_words([]) == []

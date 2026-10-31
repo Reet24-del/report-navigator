@@ -2,6 +2,7 @@
 
 import pymupdf
 import pytest
+
 from backend import Settings, load_report
 from src.report_navigator.query import parse_question
 from src.report_navigator.schemas import Chunk, TableCell, TableRow
@@ -167,4 +168,41 @@ def test_native_pdf_row_retains_headers_and_coordinates(tmp_path):
         .citations[0]
         .pdf_page
         == 1
+    )
+
+
+def test_ocr_grid_rejects_numeric_tokens_spanning_columns():
+    from src.report_navigator.ocr import RecognizedPage
+    from src.report_navigator.tables import extract_table_chunks
+
+    words = [(10, 10, 40, 18, "Killed", 0, 0, 0)]
+    for i in range(3):
+        y = 35 + i * 30
+        words += [
+            (5, y, 70, y + 8, "North", 0, 0, 0),
+            (110, y, 175, y + 8, "7391", 0, 0, 0),
+            (210, y, 225, y + 8, "88", 0, 0, 0),
+        ]
+    with pymupdf.open() as document:
+        page = document.new_page(width=250, height=130)
+        recognized = RecognizedPage(
+            page,
+            {
+                "words": words,
+                "blocks": [],
+                "grid_rows": [0, 25, 55, 85, 115],
+                "grid_columns": [0, 100, 150, 200, 250],
+            },
+        )
+        assert extract_table_chunks(recognized, "synthetic", "ocr") == []
+
+
+def test_recovery_settings_invalidate_report_cache():
+    from src.report_navigator.storage import extraction_settings
+
+    assert extraction_settings(Settings()) != extraction_settings(
+        Settings(ocr_recovery_enabled=False)
+    )
+    assert extraction_settings(Settings()) != extraction_settings(
+        Settings(ocr_max_regions=0)
     )
