@@ -4,6 +4,7 @@ import json
 
 import pymupdf
 import pytest
+
 from backend import BackendError, Settings, load_report
 
 
@@ -125,3 +126,73 @@ def test_question_length_limit(tmp_path):
     with pytest.raises(BackendError) as caught:
         navigator.ask("coverage " * 10)
     assert caught.value.code == "question_too_long"
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "how many accidents were detected during the year 2023",
+        "How many people were killed during 2027?",
+    ],
+)
+def test_offline_missing_location_requests_clarification(question, tmp_path):
+    navigator = load_report(
+        report_pdf("This report records accidents and deaths during 2023 and 2027."),
+        "invented.pdf",
+        settings=Settings(cache_dir=tmp_path),
+    )
+    result = navigator.ask(question)
+    assert result.status == "insufficient_evidence"
+    assert (
+        result.answer == "Please specify the country, state or city in your question."
+    )
+    assert not result.citations
+    assert result.warnings == navigator.report_info.warnings
+    # The scored numeric contract remains exactly NOT_FOUND with no page.
+    prediction = navigator.predict(question)
+    assert prediction.answer == "NOT_FOUND"
+    assert prediction.page is None
+
+
+def test_location_supplied_retains_supported_answer_and_missing_evidence(tmp_path):
+    from test_tables import make_grid_pdf
+
+    navigator = load_report(
+        make_grid_pdf(), "invented.pdf", settings=Settings(cache_dir=tmp_path)
+    )
+    assert (
+        navigator.ask("How many people were killed in North District in 2027?").answer
+        == "73 [E1]"
+    )
+    missing = navigator.ask("How many people were killed in Unknown District in 2027?")
+    assert missing.status == "insufficient_evidence"
+    assert (
+        missing.answer
+        == "I couldn't find sufficient evidence in the indexed report pages."
+    )
+
+
+def test_location_prompt_does_not_mislabel_unsupported_questions(tmp_path):
+    navigator = load_report(
+        report_pdf("This statistical report records accidents in 2023."),
+        "invented.pdf",
+        settings=Settings(cache_dir=tmp_path),
+    )
+    assert (
+        "Please specify"
+        not in navigator.ask("What percentage of accidents occurred in 2023?").answer
+    )
+
+
+def test_hosted_questions_do_not_require_offline_entity_parser(tmp_path):
+    text = "This report records 125 accidents in 2023."
+    generator = FixedGenerator(text)
+    navigator = load_report(
+        report_pdf(text),
+        "invented.pdf",
+        settings=Settings(cache_dir=tmp_path, answer_mode="hosted"),
+        generator=generator,
+    )
+    result = navigator.ask("How many accidents were detected during the year 2023?")
+    assert result.status == "answered"
+    assert len(generator.prompts) == 1

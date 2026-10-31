@@ -46,9 +46,11 @@ with st.container(key="rn-report-settings"):
                     label_visibility="collapsed",
                 )
                 if mode == "offline":
-                    st.caption("Offline mode uses no cloud model.")
+                    st.caption("Numerical report questions · No cloud model")
                 else:
-                    st.caption("Internet required · Google Gemma")
+                    st.caption(
+                        "General document questions · Internet required · Google Gemma"
+                    )
             if mode == "hosted":
                 st.info(
                     "Your question and retrieved report evidence are sent to Google. "

@@ -3,8 +3,9 @@
 [Live demo](https://sloths-report-navigator.streamlit.app)
 
 Offline question answering over government statistics PDFs, with exact integer
-answers, physical-page citations and selective OCR. The Streamlit frontend is
-being developed separately. V2 does not include a local Gemma model.
+answers, physical-page citations and selective OCR. Streamlit provides the web
+interface. V5 adds hosted general document QA for notes and explanatory prose;
+the scored numerical pipeline remains offline. No local Gemma model is included.
 
 ## Problem understanding
 
@@ -24,7 +25,7 @@ recovery handles some borderless/scanned tables. BM25 and entity constraints
 retrieve candidate rows. The solver enforces measure, year, geography and category
 constraints, rejects ranks/rates/subtotals, and abstains on unresolved conflicts.
 
-The cloud Gemma adapter from V1 remains isolated for optional manual development.
+The cloud Gemma adapter supports optional general document QA with cited excerpts.
 `predict.py` is always offline, bypasses persistent report caches, and does not
 import or call the cloud SDK. No embeddings or vector database are used.
 
@@ -117,4 +118,130 @@ provides PDF upload, offline and explicit hosted Gemma modes, answer citations
 and physical page viewing. Keep API credentials in the ignored local .env.
 After updating the backend, restart the process and re-upload the report so no
 old session navigator remains active. No additional application dependencies
-were introduced. Preserve teammate frontend work before merging this UI.
+were introduced.
+
+### General document QA (V5)
+
+For study notes and explanatory PDFs, choose **Hosted Gemma demo** in Report
+settings. Ask a focused question such as “How does RSA work according to these
+notes?” The same Google API key is used. Internet access is required, and your
+question plus retrieved excerpts are sent to Google. Offline report QA supports
+numerical report questions and explains when a question needs the hosted mode.
+
+BM25 ranks overlapping, page-bound text chunks. Hosted retrieval removes generic
+question verbs, limits near-duplicate excerpts on a page, and sends at most six
+chunks totaling 18,000 characters. Gemma answers only from those excerpts and
+selects evidence IDs. The backend verifies that every cited quote occurs in one
+original chunk and assigns physical PDF pages itself. Source cards show the quote
+and open the corresponding original page. These checks establish provenance,
+not complete semantic correctness; users should inspect the evidence.
+
+Lexical retrieval can miss paraphrases, and whole-document summaries are not
+guaranteed. Scanned equations, handwriting and diagrams may not extract correctly.
+General QA quality has not been measured on unseen notes. Tests use invented
+documents and controlled model outputs; they do not establish model accuracy or
+resistance to every prompt injection. No embeddings or vector database are used.
+
+### Code structure and architecture
+
+```text
+app.py                         Streamlit entry point and mode selection
+ui/session.py                  Per-session document and answer lifecycle
+ui/views.py                    Questions, supporting quotes and page viewer
+backend/__init__.py            Public Python integration contract
+src/report_navigator/
+  ingest.py, ocr.py, tables.py  PDF text, selective OCR and table geometry
+  retrieval.py                 BM25 retrieval; separate hosted context selection
+  query.py, solver.py          Offline numerical constraints and cell selection
+  answering.py                 Hosted Gemma calls and exact-quote validation
+  service.py, schemas.py       Document-scoped API and validated data contracts
+  evidence.py                  Original physical PDF page rendering
+predict.py                     Offline scoring entry point
+tests/                         Extraction, contracts, frontend and general QA
+```
+
+```mermaid
+flowchart TD
+    PDF[Uploaded PDF] --> Extract[Text / selective OCR / tables]
+    Extract --> Index[Page-aware chunks and BM25 index]
+    Index --> Offline[Offline numerical solver]
+    Index --> Hosted[Bounded excerpts to hosted Gemma]
+    Hosted --> Validate[Validate evidence IDs and exact quotes]
+    Offline --> Answer[Answer with physical-page citations]
+    Validate --> Answer
+    Answer --> UI[Streamlit source cards and original page viewer]
+```
+
+Streamlit calls the shared Python backend directly. V6 exposes the same backend
+through a separate FastAPI service; the offline scorer does not depend on HTTP.
+
+### HTTP API and interactive Swagger (V6)
+
+The deployed Streamlit interface is https://sloths-report-navigator.streamlit.app.
+The separate API deployment is being verified; its actual public URL will be
+recorded here after verification. The Streamlit domain does not serve this API.
+
+To run the API locally:
+
+```bash
+python -m pip install -r requirements-api.txt
+python -m uvicorn api.main:app --host 127.0.0.1 --port 8000 --workers 1
+```
+
+Open http://127.0.0.1:8000/docs for interactive Swagger UI. The executable
+specification is available at `/openapi.json` and `/swagger.json`; a generated
+copy is committed at [docs/swagger.json](docs/swagger.json). Regenerate it with
+`python scripts/export_openapi.py`. It is an OpenAPI specification, despite the
+compatibility filename swagger.json.
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| GET | `/health` | Service readiness and hosted-mode configuration |
+| POST | `/documents` | Upload a PDF with offline or hosted mode |
+| GET | `/documents/{id}` | Document metadata |
+| POST | `/documents/{id}/ask` | Ask a question and receive page-cited evidence |
+| GET | `/documents/{id}/pages/{page}` | Original physical page as PNG |
+| DELETE | `/documents/{id}` | Release the uploaded document |
+
+**Judge walkthrough:** Open `/docs`, expand POST /documents and click **Try it
+out**. Choose a PDF, select a mode and execute. Copy the returned **access_id**
+(not report.document_id). Paste it into the **id** field of POST
+/documents/{id}/ask and submit a question. Use a citation's **pdf_page** in the
+page endpoint to inspect the original source. Delete the document afterward.
+General notes require hosted mode; numerical statistical reports support offline.
+
+```bash
+curl -X POST http://127.0.0.1:8000/documents -F 'file=@/path/to/notes.pdf' -F 'mode=hosted'
+curl -X POST http://127.0.0.1:8000/documents/ACCESS_ID/ask -H 'Content-Type: application/json' -d '{"question":"Explain RSA according to these notes"}'
+```
+
+The API accepts PDFs up to 20 MiB and 300 pages, stores at most two active
+uploads, and expires documents after 30 idle minutes. Upload-byte limits are not
+a strict bound on extracted-index memory; unusually complex PDFs may exceed a
+small host's resources. Documents and indices are temporary and disappear on
+restart. There is no user-account system: possession of the random access_id
+grants access, so keep it private. Persistent report caches are disabled.
+One expensive operation runs at a time; a busy response is 429 and full capacity
+is 503. The public hosted demo has a 60-attempt per-process budget; it resets on
+restart and is not a production billing control.
+
+Deploy the Dockerfile on Render as a **Free** web service using one worker and
+`/health` as the health-check path. Configure GEMINI_API_KEY as a secret and
+GEMMA_MODEL=gemma-4-26b-a4b-it. No key belongs in GitHub or Swagger. Free Render
+services sleep when idle and may take about a minute to wake; active documents
+are lost across restarts. See [Render's free service limits](https://render.com/docs/free).
+
+```mermaid
+flowchart LR
+    Browser[Streamlit browser] --> UI[Streamlit service]
+    Judges[Judges at API /docs] --> API[FastAPI service]
+    UI --> Backend[Shared Python backend]
+    API --> Backend
+    Backend --> Offline[Offline numerical solver]
+    Backend --> Gemma[Optional hosted Gemma]
+```
+
+API files live in `api/main.py` (routes and errors), `api/contracts.py` (HTTP
+schemas) and `api/documents.py` (temporary access tokens, capacity and expiry).
+`Dockerfile` packages OCR and the service, `.dockerignore` excludes secrets and
+data, and `tests/test_api.py` exercises the complete judge workflow.

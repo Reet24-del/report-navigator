@@ -54,11 +54,21 @@ def workspace(navigator):
     answer_column, source_column = st.columns([1, 1.1], gap="large")
     with answer_column:
         st.subheader("Ask the report")
+        hosted = st.session_state.get("rn_mode") == "hosted"
+        st.caption(
+            "Ask for definitions, explanations or comparisons supported by this PDF."
+            if hosted
+            else "Numerical report questions only. For study notes, select Hosted Gemma demo in Report settings."
+        )
         with st.form("rn_ask_form"):
             question = st.text_area(
                 "Your question",
-                key="rn_question",
-                placeholder="How many people were killed in North District in 2027?",
+                key=f"rn_question_{info.document_id}_{'hosted' if hosted else 'offline'}",
+                placeholder=(
+                    "How does RSA work according to these notes?"
+                    if hosted
+                    else "How many people were killed in North District in 2027?"
+                ),
                 height=100,
                 max_chars=2000,
             )
@@ -85,7 +95,7 @@ def workspace(navigator):
                         st.caption(
                             f"{citation.evidence_id} · PDF page {citation.pdf_page}{printed}"
                         )
-                        st.caption("Table evidence / source excerpt")
+                        st.caption("Supporting source excerpt")
                         if citation.quote:
                             st.text(citation.quote)
                         if st.button(

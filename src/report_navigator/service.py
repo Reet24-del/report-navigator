@@ -9,7 +9,8 @@ if TYPE_CHECKING:
 from .config import Settings
 from .evidence import render_page
 from .ingest import document_hash, extract_pdf, validate_pdf
-from .retrieval import SearchIndex, build_index, retrieve, retrieve_candidates
+from .query import parse_question
+from .retrieval import SearchIndex, build_index, retrieve_candidates, retrieve_general
 from .schemas import AnswerResult, BackendError, Citation, NumericAnswer, ReportInfo
 from .solver import solve
 from .storage import read_cache, write_cache
@@ -46,6 +47,26 @@ class Navigator:
                 "Image-assisted Gemma answering is not implemented in the offline V2 pipeline.",
             )
         if self._generator is None and self._settings.answer_mode == "offline":
+            query = parse_question(question)
+            if not query.supported or not query.measure:
+                return AnswerResult(
+                    document_id=self.report_info.document_id,
+                    status="insufficient_evidence",
+                    answer=(
+                        "Offline report QA supports numerical report questions. "
+                        "For definitions, explanations or questions about study notes, "
+                        "choose Hosted Gemma demo in Report settings. "
+                        "That mode requires internet and sends retrieved excerpts to Google."
+                    ),
+                    warnings=self.report_info.warnings,
+                )
+            if query.supported and query.measure and not query.entity:
+                return AnswerResult(
+                    document_id=self.report_info.document_id,
+                    status="insufficient_evidence",
+                    answer="Please specify the country, state or city in your question.",
+                    warnings=self.report_info.warnings,
+                )
             prediction = self.predict(question)
             if prediction.answer == "NOT_FOUND":
                 return AnswerResult(
@@ -68,10 +89,10 @@ class Navigator:
                 citations=(citation,),
                 warnings=self.report_info.warnings,
             )
-        # The legacy hosted path is explicit and is never called by predict.py.
+        # General document QA is explicit and is never called by predict.py.
         from .answering import assemble_evidence, generate_answer
 
-        matches = retrieve(question, self._index)
+        matches = retrieve_general(question, self._index)
         evidence = assemble_evidence(matches)
         answer = generate_answer(
             question.strip(),

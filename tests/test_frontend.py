@@ -33,9 +33,11 @@ def test_reruns_do_not_reload_and_mode_change_clears_answer():
     assert loader.call_count == 1
     ask_question(state, "How many were killed?")
     assert state["rn_page"] == 2
+    state["rn_question"] = "How many were killed?"
     sync_document(state, b"pdf", "a.pdf", "hosted", settings=Settings(), loader=loader)
     assert loader.call_count == 2
     assert "rn_result" not in state
+    assert state["rn_question"] == ""
     assert state["rn_page"] == 1
     assert loader.call_args.kwargs["settings"].answer_mode == "hosted"
 
@@ -110,6 +112,7 @@ def test_workspace_answer_persists_on_page_rerun(monkeypatch):
         png = page.get_pixmap().tobytes("png")
     nav = fake_navigator()
     nav.report_info = SimpleNamespace(
+        document_id="synthetic-document",
         filename="synthetic.pdf",
         searchable_pages=2,
         page_count=2,
@@ -152,6 +155,7 @@ def test_setup_transition_does_not_reload_report_and_removal_restores_landing(
         png = page.get_pixmap().tobytes("png")
     nav = fake_navigator()
     nav.report_info = SimpleNamespace(
+        document_id="synthetic-document",
         filename="synthetic.pdf",
         searchable_pages=2,
         page_count=2,

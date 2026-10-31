@@ -15,8 +15,14 @@ DOCUMENT_KEYS = (
 
 
 def clear_document(state):
+    for key in list(state):
+        if key.startswith("rn_question_"):
+            state.pop(key, None)
     for key in DOCUMENT_KEYS:
         state.pop(key, None)
+    # Explicitly reset the widget value; deleting its key alone lets Streamlit
+    # restore the previous browser value when the same widget is rendered again.
+    state["rn_question"] = ""
 
 
 def sync_document(
@@ -24,7 +30,7 @@ def sync_document(
 ):
     """One load attempt per content/mode identity; failed loads need explicit retry."""
     identity = (
-        (hashlib.sha256(content).hexdigest(), mode, "v4-ui-1")
+        (hashlib.sha256(content).hexdigest(), mode, "v5-general-qa-1")
         if content is not None
         else None
     )
@@ -60,7 +66,7 @@ def ask_question(state, question):
     state["rn_page"] = 1
     state["rn_last_question"] = question.strip()
     if not question.strip():
-        state["rn_error"] = "Enter a question with an entity, year and measure."
+        state["rn_error"] = "Enter a question about the uploaded document."
         return
     navigator = state.get("rn_navigator")
     if navigator is None:

@@ -98,3 +98,37 @@ def retrieve_candidates(
         if chunk.chunk_id not in seen
     )
     return tuple(rows[:k])
+
+
+def retrieve_general(question: str, index: SearchIndex) -> tuple[Chunk, ...]:
+    """Bound hosted context and avoid filling it with overlapping page excerpts.
+
+    Keep original chunks intact so accepted quotes remain traceable to physical
+    pages. This path is separate from the numerical candidate selector.
+    """
+    generic = {"explain", "describe", "compare", "summarize", "define", "work", "works"}
+    topic = " ".join(token for token in tokenize(question) if token not in generic)
+    ranked = retrieve(topic, index, len(index.chunks))
+    selected: list[Chunk] = []
+    per_page: dict[int, int] = {}
+    characters = 0
+    for chunk in ranked:
+        if per_page.get(chunk.pdf_page, 0) >= 2:
+            continue
+        words = set(chunk.text.casefold().split())
+        duplicate = False
+        for previous in selected:
+            if previous.pdf_page != chunk.pdf_page:
+                continue
+            other = set(previous.text.casefold().split())
+            if len(words & other) / max(1, min(len(words), len(other))) > 0.85:
+                duplicate = True
+                break
+        if duplicate or characters + len(chunk.text) > 18000:
+            continue
+        selected.append(chunk)
+        characters += len(chunk.text)
+        per_page[chunk.pdf_page] = per_page.get(chunk.pdf_page, 0) + 1
+        if len(selected) == 6:
+            break
+    return tuple(selected)
