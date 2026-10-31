@@ -4,8 +4,9 @@ import json
 
 import httpx
 import pytest
-from backend import BackendError, Chunk, Settings
 from google.genai import errors
+
+from backend import BackendError, Chunk, Settings
 from src.report_navigator.answering import (
     GemmaGenerator,
     assemble_evidence,
@@ -210,3 +211,92 @@ def test_real_sdk_boundary_maps_errors_and_disables_hidden_retries(
     assert "private provider details" not in str(caught.value)
     assert captured["http_options"].retry_options.attempts == 1
     assert captured["http_options"].timeout == 30000
+
+
+def test_status_is_available_without_provider_details(monkeypatch):
+    from types import SimpleNamespace
+
+    class FakeClient:
+        def __init__(self, **kwargs):
+            self.models = SimpleNamespace(generate_content=self.request)
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+        def request(self, **kwargs):
+            raise errors.ServerError(500, {"error": {"message": "PRIVATE"}})
+
+    monkeypatch.setattr("src.report_navigator.answering.genai.Client", FakeClient)
+    with pytest.raises(BackendError) as caught:
+        GemmaGenerator(Settings(api_key="SECRET")).generate("test")
+    assert caught.value.http_status == 500
+    assert "PRIVATE" not in str(caught.value)
+
+
+def test_deadline_prevents_retry(monkeypatch):
+    ticks = iter([0, 44.9, 44.9])
+    monkeypatch.setattr(
+        "src.report_navigator.answering.time.monotonic", lambda: next(ticks)
+    )
+    generator = SequenceGenerator(BackendError("model_timeout", "timed out"))
+    with pytest.raises(BackendError) as caught:
+        generate_answer("coverage?", source_evidence(), "doc", Settings(), generator)
+    assert caught.value.code == "model_timeout"
+    assert len(generator.prompts) == 1
+
+
+def test_transient_then_invalid_share_three_call_budget(monkeypatch):
+    monkeypatch.setattr("src.report_navigator.answering.time.sleep", lambda _: None)
+    generator = SequenceGenerator(
+        BackendError("model_timeout", "timed out"), "invalid", model_json()
+    )
+    result = generate_answer(
+        "coverage?", source_evidence(), "doc", Settings(max_attempts=3), generator
+    )
+    assert result.status == "answered"
+    assert len(generator.prompts) == 3
+
+
+def test_unknown_model_rejected():
+    with pytest.raises(ValueError):
+        Settings(model="gemini-other")
+
+
+@pytest.mark.parametrize("text", [None, "", "   "])
+def test_empty_provider_response_rejected(monkeypatch, text):
+    from types import SimpleNamespace
+
+    class FakeClient:
+        def __init__(self, **kwargs):
+            self.models = SimpleNamespace(
+                generate_content=lambda **kwargs: SimpleNamespace(text=text)
+            )
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+    monkeypatch.setattr("src.report_navigator.answering.genai.Client", FakeClient)
+    with pytest.raises(BackendError) as caught:
+        GemmaGenerator(Settings(api_key="SECRET")).generate("test")
+    assert caught.value.code == "empty_model_response"
+
+
+def test_request_timeout_is_clipped_to_overall_deadline(monkeypatch):
+    captured = {}
+
+    def fake_generate(self, prompt, **kwargs):
+        captured.update(kwargs)
+        return model_json()
+
+    monkeypatch.setattr(GemmaGenerator, "generate", fake_generate)
+    result = generate_answer(
+        "coverage?", source_evidence(), "doc", Settings(request_deadline_seconds=2)
+    )
+    assert result.status == "answered"
+    assert 0 < captured["timeout_seconds"] <= 2
