@@ -1,6 +1,7 @@
 """Grounded text answers with bounded provider calls and citation validation."""
 
 import json
+import random
 import re
 import time
 from typing import Protocol
@@ -35,7 +36,13 @@ class GemmaGenerator:
     def __init__(self, settings: Settings):
         self.settings = settings
 
-    def generate(self, prompt: str) -> str:
+    def generate(
+        self,
+        prompt: str,
+        *,
+        timeout_seconds: float | None = None,
+        profile: str = "grounded",
+    ) -> str:
         key = self.settings.api_key
         if key is None or not key.get_secret_value().strip():
             raise BackendError(
@@ -43,44 +50,60 @@ class GemmaGenerator:
                 "Set GEMINI_API_KEY in the environment or project .env file.",
             )
         try:
+            config = types.GenerateContentConfig(max_output_tokens=2048)
+            if profile not in {"minimal", "system", "thinking", "grounded"}:
+                raise ValueError("Unknown diagnostic profile")
+            if profile != "minimal":
+                config.system_instruction = SYSTEM_INSTRUCTION
+            if profile in {"thinking", "grounded"}:
+                config.thinking_config = types.ThinkingConfig(thinking_level="minimal")
+            if profile == "grounded":
+                config.temperature = 0
             # Disable SDK retries: the outer loop owns the total request budget.
             with genai.Client(
                 api_key=key.get_secret_value(),
                 http_options=types.HttpOptions(
-                    timeout=int(self.settings.timeout_seconds * 1000),
+                    timeout=max(
+                        1,
+                        int((timeout_seconds or self.settings.timeout_seconds) * 1000),
+                    ),
                     retry_options=types.HttpRetryOptions(attempts=1),
                 ),
             ) as client:
                 response = client.models.generate_content(
                     model=self.settings.model,
                     contents=prompt,
-                    config=types.GenerateContentConfig(
-                        system_instruction=SYSTEM_INSTRUCTION,
-                        temperature=0,
-                        max_output_tokens=2048,
-                        thinking_config=types.ThinkingConfig(thinking_level="minimal"),
-                    ),
+                    config=None if profile == "minimal" else config,
                 )
-                return response.text or ""
+                if not response.text or not response.text.strip():
+                    raise BackendError(
+                        "empty_model_response",
+                        "The model returned no text; no answer was accepted.",
+                    )
+                return response.text
         except errors.APIError as exc:
             if exc.code == 429:
                 raise BackendError(
                     "rate_limit",
                     "The model quota or rate limit was reached. Check the provider account before retrying.",
+                    http_status=exc.code,
                 ) from None
             if exc.code in (401, 403):
                 raise BackendError(
                     "model_access_denied",
                     "The API key or account cannot access the model. Check credentials and permissions.",
+                    http_status=exc.code,
                 ) from None
             if exc.code and exc.code >= 500:
                 raise BackendError(
                     "model_service_unavailable",
                     "The model service is temporarily unavailable. Please try again later.",
+                    http_status=exc.code,
                 ) from None
             raise BackendError(
                 "model_request_error",
                 "The provider rejected the model request. Check the configured model and API support.",
+                http_status=exc.code,
             ) from None
         except httpx.TimeoutException:
             raise BackendError(
@@ -187,9 +210,24 @@ def generate_answer(
     base_prompt = json.dumps(payload, ensure_ascii=False)
     prompt = base_prompt
     model = generator if generator is not None else GemmaGenerator(settings)
+    deadline = time.monotonic() + settings.request_deadline_seconds
     for attempt in range(settings.max_attempts):
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise BackendError(
+                "model_timeout", "The overall model request deadline was reached."
+            )
         try:
-            raw = model.generate(prompt)
+            if isinstance(model, GemmaGenerator):
+                raw = model.generate(
+                    prompt, timeout_seconds=min(settings.timeout_seconds, remaining)
+                )
+            else:
+                raw = model.generate(prompt)
+            if time.monotonic() >= deadline:
+                raise BackendError(
+                    "model_timeout", "The overall model request deadline was reached."
+                )
             return validate_model_answer(raw, evidence, document_id)
         except (ValidationError, ValueError):
             if attempt + 1 == settings.max_attempts:
@@ -207,5 +245,10 @@ def generate_answer(
                 or attempt + 1 == settings.max_attempts
             ):
                 raise
-            time.sleep(0.5 * (attempt + 1))
+            delay = 2**attempt + random.uniform(0, 0.25)
+            if time.monotonic() + delay >= deadline:
+                raise BackendError(
+                    "model_timeout", "The overall model request deadline was reached."
+                ) from None
+            time.sleep(delay)
     raise AssertionError("The configured attempt count must be positive.")

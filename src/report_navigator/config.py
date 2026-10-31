@@ -24,7 +24,7 @@ class Settings(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     api_key: SecretStr | None = Field(default=None, repr=False, exclude=True)
-    model: str = "gemma-4-26b-a4b-it"
+    model: Literal["gemma-4-26b-a4b-it", "gemma-4-31b-it"] = "gemma-4-26b-a4b-it"
     cache_dir: Path = Path(tempfile.gettempdir()) / "report-navigator-cache"
     cache_enabled: bool = True
     answer_mode: Literal["offline", "hosted"] = "offline"
@@ -41,6 +41,7 @@ class Settings(BaseModel):
     max_pages: int = Field(default=1000, ge=1)
     max_question_chars: int = Field(default=2000, ge=1)
     timeout_seconds: float = Field(default=30, ge=1, le=120)
+    request_deadline_seconds: float = Field(default=45, ge=1, le=120)
     max_attempts: int = Field(default=2, ge=1, le=3)
 
     @model_validator(mode="after")
@@ -69,6 +70,8 @@ class Settings(BaseModel):
                 ),
                 answer_mode=os.getenv("ANSWER_MODE", "offline"),
                 timeout_seconds=os.getenv("GEMMA_TIMEOUT_SECONDS", "30"),
+                request_deadline_seconds=os.getenv("GEMMA_DEADLINE_SECONDS", "45"),
+                max_attempts=os.getenv("GEMMA_MAX_ATTEMPTS", "2"),
             )
         except ValidationError:
             raise BackendError(

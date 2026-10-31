@@ -12,9 +12,10 @@ class Contract(BaseModel):
 class BackendError(Exception):
     """An actionable error safe to display without provider response details."""
 
-    def __init__(self, code: str, message: str):
+    def __init__(self, code: str, message: str, *, http_status: int | None = None):
         self.code = code
         self.message = message
+        self.http_status = http_status
         super().__init__(message)
 
 
