@@ -1,4 +1,4 @@
-# V2 backend integration
+# Backend integration — V3
 
 ## Public interface
 
@@ -85,8 +85,9 @@ folder and are keyed by the document, extraction settings, model hash and parser
 version. No challenge data is committed. The scoring entry point disables report
 cache reuse and rebuilds its index from the actual --pdf.
 
-The retained V1 cloud adapter is optional, unverified against a live API in this
-workspace, and cannot be used in scoring. ANSWER_MODE=hosted is an explicit local
+The optional cloud adapter was tested live in V3 with synthetic evidence. Its
+configured grounded request passed; a bare request returned HTTP 500. It cannot
+be used in scoring. ANSWER_MODE=hosted is an explicit local
 development choice. Never set it in predict.py, which forces offline settings.
 use_page_images=True raises unsupported_feature; local Gemma vision is not V2.
 
@@ -108,3 +109,37 @@ Team Sloths: the frontend teammate owns app.py, the backend owner owns this
 package, and the validation teammate checks actual figures/pages independently.
 The GitHub repository's initial README commit exists; do not assume the backend
 has been published until its files are visible there. Teammate names are pending.
+
+## V3: optional hosted Gemma diagnostics
+
+Use the existing `navigator.ask(question)` contract. Explicit demo setup is
+`load_report(pdf_bytes, filename, settings=Settings.from_env().model_copy(update={"answer_mode": "hosted"}))`.
+Show this choice as "Hosted Gemma demo — internet required" in Streamlit. Scoring
+continues through `predict.py`; hosted API use is prohibited there. No local
+Gemma inference or image-assisted answer path was added in V3.
+
+Run `python scripts/check_gemma.py` from the project directory after installing
+requirements and setting GEMINI_API_KEY in the ignored local .env. The check
+makes up to four live requests, stops on the first failure and uses synthetic
+text only. It tests a minimal request, system instructions, thinking settings,
+and a grounded answer with a verified quote and physical page. It prints the
+model, stage, elapsed time and safe HTTP status on errors. It never prints the
+key, headers or raw provider exceptions. Run it explicitly, not on Streamlit
+reruns, startup or as part of ordinary tests.
+
+Catch BackendError and display `error.message`. The optional `error.http_status`
+is safe numeric diagnostic information. An API failure is not NOT_FOUND and
+must not be shown as a successful offline or Gemma answer. For 400/404, inspect
+request/model support; for 401/403, check project/key access; for 429, inspect
+quota rather than repeatedly retrying. For transient server/network failures,
+the answer path retries with exponential backoff and jitter within its shared
+attempt budget. SDK retries are disabled. Default budget: two generation calls
+including repair, 30 seconds per call, 45 seconds overall. Max attempts: three.
+A transport timeout is clipped to the remaining deadline; scheduling and client
+cleanup can add slight overhead, so this is not an operating-system hard kill.
+Custom injected generators must enforce their own blocking timeout.
+
+The API key belongs only in the local backend .env, never frontend source or
+GitHub. Keep ANSWER_MODE=offline in the shared defaults. Hosted models are
+explicitly restricted to gemma-4-26b-a4b-it or gemma-4-31b-it; no automatic model
+substitution occurs. A hosted demo does not establish offline Gemma prize eligibility.

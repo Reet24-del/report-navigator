@@ -95,3 +95,14 @@ owner, Reet24-del. A second member owns Streamlit and a third owns independent
 validation and presentation. The two teammates' names have not yet been supplied
 and must be filled in before the final submission. Repository owner:
 https://github.com/Reet24-del/report-navigator.
+
+### V3 optional Gemma demo check
+
+Run `python scripts/check_gemma.py` to diagnose the hosted Gemma connection using
+synthetic evidence. The ignored local `.env` accepts GEMINI_API_KEY and the
+settings documented in `.env.example`. Keep ANSWER_MODE=offline for scoring.
+The diagnostic makes up to four live requests under a shared 45-second default
+budget; ordinary tests use mocks and make no cloud requests. The existing key
+passed the V3 live test. Hosted demo success is separate from offline scoring
+and does not establish eligibility for the Gemma category. See
+BACKEND_INTEGRATION.md and V3_REVIEW.md for contracts, limits and verification.
