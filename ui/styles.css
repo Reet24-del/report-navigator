@@ -1,0 +1,38 @@
+:root { --rn-ink: #101a34; --rn-muted: #5f687c; --rn-accent: #276c64; --rn-line: #dce2e9; }
+.stApp { background: #fff; color: var(--rn-ink); }
+.stMainBlockContainer { max-width: 1600px; padding: 1.1rem 4rem 2rem; }
+[data-testid="stHeader"] { background: transparent; }
+.rn-header { display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--rn-line); padding:0 0 22px; margin-bottom:52px; }
+.rn-brand { font:700 31px/1.1 Georgia,serif; letter-spacing:-1.1px; }
+.rn-team { color:var(--rn-muted); font-size:18px; }
+.rn-hero h1 { font:700 clamp(46px,6vw,84px)/1.04 Georgia,serif; letter-spacing:-3px; color:var(--rn-ink); margin:0 0 22px; padding:0; }
+.rn-hero p { font:400 clamp(19px,2vw,27px)/1.5 Georgia,serif; color:#414b60; margin:0 0 30px; }
+[data-testid="stFileUploaderDropzone"] { border:1px dashed #c7d2df; border-radius:7px; background:#fff; padding:24px; min-height:110px; }
+[data-testid="stFileUploader"] { margin-bottom:14px; }
+[data-testid="stWidgetLabel"] p { font-size:16px; font-weight:600; }
+.stButton button, .stDownloadButton button, .stFormSubmitButton button { border-radius:6px; font-size:15px; min-height:42px; }
+[data-testid="stRadio"] label { font-size:16px; }
+[data-testid="stCaptionContainer"] { color:var(--rn-muted); font-size:14px; }
+.rn-steps { display:grid; grid-template-columns:repeat(3,1fr); gap:52px; border-top:1px solid var(--rn-line); padding-top:24px; margin-top:24px; }
+.rn-step-number { color:var(--rn-accent); font:700 32px Georgia,serif; margin-bottom:10px; }
+.rn-steps h3 { font:700 23px/1.25 Georgia,serif; padding:0; margin:0 0 12px; letter-spacing:-.4px; }
+.rn-steps p { font-size:16px; color:var(--rn-muted); line-height:1.6; margin:0; }
+.rn-footer { margin-top:30px; border-top:1px solid var(--rn-line); padding:18px 0 0; text-align:center; color:var(--rn-muted); font:14px Georgia,serif; }
+h2,h3 { color:var(--rn-ink); }
+[data-testid="stText"] { font:400 17px/1.7 sans-serif; white-space:pre-wrap; overflow-wrap:anywhere; }
+[data-testid="stForm"] { border-color:var(--rn-line); border-radius:8px; }
+[data-testid="stImage"] { border:1px solid var(--rn-line); background:#f8fafb; }
+@media(max-width:700px) {
+  .stMainBlockContainer { padding:1rem 1.1rem 2rem; }
+  .rn-header { margin-bottom:32px; padding-bottom:18px; }
+  .rn-brand { font-size:24px; letter-spacing:-.7px; }
+  .rn-team { font-size:15px; }
+  .rn-hero h1 { font-size:44px; letter-spacing:-1.7px; }
+  .rn-hero p { font-size:19px; }
+  .rn-steps { grid-template-columns:1fr; gap:24px; }
+  .rn-steps h3 { font-size:22px; }
+  [data-testid="stFileUploaderDropzone"] { padding:16px; }
+}
+
+[data-testid="stToolbar"] { display:none; }
+[data-testid="stRadio"] p, [data-testid="stFileUploader"] p, [data-testid="stRadio"] label { font-size:16px; }
