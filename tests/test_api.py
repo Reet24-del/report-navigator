@@ -129,6 +129,22 @@ def test_oversize_body_is_rejected_before_ingestion():
             headers={"content-type": "application/octet-stream"},
         )
         assert response.status_code == 413
+        boundary = "streamed-test"
+
+        def chunks():
+            yield (
+                f'--{boundary}\r\nContent-Disposition: form-data; name="file"; filename="x.pdf"\r\n\r\n'
+            ).encode()
+            for _ in range(18):
+                yield b"x" * 65536
+            yield f"\r\n--{boundary}--\r\n".encode()
+
+        response = client.post(
+            "/documents",
+            content=chunks(),
+            headers={"content-type": f"multipart/form-data; boundary={boundary}"},
+        )
+        assert response.status_code == 413
 
 
 def test_hosted_citations_and_provider_errors_are_safe():

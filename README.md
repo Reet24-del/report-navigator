@@ -1,6 +1,6 @@
 # Report Navigator — Sloths
 
-[Live demo](https://sloths-report-navigator.streamlit.app)
+[Live app](https://sloths-report-navigator.streamlit.app) · [Try the HTTP API in Swagger UI](https://sloths-report-navigator-api.onrender.com/docs) · [swagger.json](https://sloths-report-navigator-api.onrender.com/swagger.json)
 
 Offline question answering over government statistics PDFs, with exact integer
 answers, physical-page citations and selective OCR. Streamlit provides the web
@@ -8,6 +8,8 @@ interface. V5 adds hosted general document QA for notes and explanatory prose;
 the scored numerical pipeline remains offline. No local Gemma model is included.
 
 ## Problem understanding
+
+**Challenge: Problem statement 5 — question answering over statistical reports.**
 
 Journalists and officials need exact figures from long reports containing tables,
 not plausible explanations. We retrieve evidence, identify the requested entity,
@@ -178,8 +180,17 @@ through a separate FastAPI service; the offline scorer does not depend on HTTP.
 ### HTTP API and interactive Swagger (V6)
 
 The deployed Streamlit interface is https://sloths-report-navigator.streamlit.app.
-The separate API deployment is being verified; its actual public URL will be
-recorded here after verification. The Streamlit domain does not serve this API.
+The live API is [sloths-report-navigator-api.onrender.com](https://sloths-report-navigator-api.onrender.com).
+Judges can execute requests in [interactive Swagger UI at /docs](https://sloths-report-navigator-api.onrender.com/docs).
+Download [swagger.json](https://sloths-report-navigator-api.onrender.com/swagger.json)
+or [openapi.json](https://sloths-report-navigator-api.onrender.com/openapi.json).
+The Streamlit domain does not serve this separate API.
+
+The public Swagger upload → question → cited page → deletion workflow was
+verified in a fresh browser. Hosted Gemma returned a traceable answer on invented
+cryptography notes; a scanned synthetic table was OCRed and answered correctly
+on the deployed Docker service. These are integration checks, not accuracy
+measurements on unseen documents.
 
 To run the API locally:
 

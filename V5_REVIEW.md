@@ -50,5 +50,9 @@ mathematical notation are not guaranteed. The new synthetic/live checks do not
 establish unseen-document accuracy or benchmark the user's cryptography notes.
 
 No FastAPI server is introduced in V5. HTTP routes and Swagger remain a separate
-pending version. V5 is locally implemented and packaged; publishing and checking
-the public Streamlit deployment are separate from these local results.
+pending version. V5 was published together with V6 in commit 8850331d2bb1d95913537515b664e5fdc4251974.
+Public Streamlit release verification is recorded separately from local results.
+
+Public Streamlit verification passed after reboot: offline theory guidance, mode
+reset, and hosted notes answer with a physical page citation. V6 provides the
+separate live HTTP API and interactive Swagger documentation.
