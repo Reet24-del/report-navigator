@@ -106,3 +106,13 @@ budget; ordinary tests use mocks and make no cloud requests. The existing key
 passed the V3 live test. Hosted demo success is separate from offline scoring
 and does not establish eligibility for the Gemma category. See
 BACKEND_INTEGRATION.md and V3_REVIEW.md for contracts, limits and verification.
+
+
+### Streamlit interface
+
+Run `python -m streamlit run app.py` from the repository directory. The interface
+provides PDF upload, offline and explicit hosted Gemma modes, answer citations
+and physical page viewing. Keep API credentials in the ignored local .env.
+After updating the backend, restart the process and re-upload the report so no
+old session navigator remains active. No additional application dependencies
+were introduced. Preserve teammate frontend work before merging this UI.
