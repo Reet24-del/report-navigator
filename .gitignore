@@ -1,0 +1,16 @@
+.env
+.env.*
+!.env.example
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+data/
+.DS_Store
+.ruff_cache/
+reports/
+evaluation_outputs/
+*.pdf
+*.jsonl
+PUBLIC_RETRIEVAL_RESULTS.json
+models/pipeline.json
