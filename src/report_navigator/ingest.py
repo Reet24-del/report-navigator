@@ -120,6 +120,14 @@ def extract_pdf(
                             page, settings, deadline - time.monotonic()
                         )
                         source_page = RecognizedPage(page, payload)
+                        if payload.get("recovery_timed_out"):
+                            warnings.append(
+                                f"Page {page.number + 1}: optional OCR recovery timed out; the completed first pass was retained."
+                            )
+                        if payload.get("recovery_attempted"):
+                            warnings.append(
+                                f"Page {page.number + 1}: selective OCR row recovery was attempted; ambiguous readings remain unsupported."
+                            )
                         text = " ".join(word[4] for word in payload["words"])
                         method = "ocr"
                     except BackendError as error:

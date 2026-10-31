@@ -4,6 +4,7 @@ import re
 from statistics import median
 
 from .schemas import Chunk, TableCell, TableRow
+from .table_quality import numeric_cells
 
 NUMBER = re.compile(
     r"^(?:\d+|\d{1,3}(?:,\d{3})+|\d{1,2}(?:,\d{2})+,\d{3})(?:\.\d+)?%?$"
@@ -141,6 +142,20 @@ def _aligned_rows(page, document_id, method, textpage):
             lines[-1][1].append(word)
         else:
             lines.append((center, [word]))
+    grid_columns = getattr(page, "grid_columns", [])
+    grid_rows = getattr(page, "grid_rows", [])
+    if len(grid_columns) >= 4 and len(grid_rows) >= 4:
+        # Physical row boundaries keep wrapped entity labels with their values.
+        lines = [
+            (
+                (top + bottom) / 2,
+                [w for w in words if top <= (w[1] + w[3]) / 2 < bottom],
+            )
+            for top, bottom in zip(grid_rows, grid_rows[1:])
+        ]
+        outside = [w for w in words if (w[1] + w[3]) / 2 < grid_rows[0]]
+        if outside:
+            lines.insert(0, (grid_rows[0] - height, outside))
     candidate_rows = []
     for center, line in lines:
         line = sorted(line, key=lambda w: w[0])
@@ -160,11 +175,21 @@ def _aligned_rows(page, document_id, method, textpage):
         if first_number is None:
             continue
         values = [word for word in line[first_number:] if NUMBER.fullmatch(word[4])]
+        if grid_columns:
+            cells = numeric_cells(values, grid_columns)
+            if cells is None or set(cells) != set(range(1, len(grid_columns) - 1)):
+                continue
         if len(values) >= 2 and not all(YEAR.fullmatch(word[4]) for word in values):
             candidate_rows.append(
                 (
                     center,
-                    " ".join(word[4] for word in line[first_label:first_number]),
+                    " ".join(
+                        word[4]
+                        for word in sorted(
+                            line[first_label:first_number],
+                            key=lambda w: (round((w[1] + w[3]) / max(height, 1)), w[0]),
+                        )
+                    ),
                     values,
                 )
             )
@@ -178,7 +203,8 @@ def _aligned_rows(page, document_id, method, textpage):
     header_lines = [
         (y, line)
         for y, line in above
-        if y > first_y - 9 * height
+        if (not grid_rows or y >= grid_rows[0])
+        and y > first_y - 9 * height
         and not re.match(
             r"(?:table|annexure)\s+\d",
             " ".join(w[4] for w in sorted(line, key=lambda w: w[0])),

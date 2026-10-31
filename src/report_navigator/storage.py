@@ -23,10 +23,12 @@ def extraction_settings(settings: Settings) -> dict:
         "min_native_chars": settings.min_native_chars,
         "ocr_enabled": settings.ocr_enabled,
         "ocr_dpi": settings.ocr_dpi,
+        "ocr_recovery_enabled": settings.ocr_recovery_enabled,
+        "ocr_max_regions": settings.ocr_max_regions,
         "ocr_model": _ocr_model_hash(settings),
         "parser_version": pymupdf.VersionBind,
-        "table_revision": 2,
-        "ocr_revision": 2,
+        "table_revision": 4,
+        "ocr_revision": 4,
     }
 
 

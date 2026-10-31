@@ -30,6 +30,8 @@ class Settings(BaseModel):
     answer_mode: Literal["offline", "hosted"] = "offline"
     ocr_enabled: bool = True
     tessdata_dir: Path = PROJECT_ROOT / "models" / "tessdata"
+    ocr_recovery_enabled: bool = True
+    ocr_max_regions: int = Field(default=6, ge=0, le=12)
     ocr_dpi: int = Field(default=300, ge=100, le=400)
     ocr_page_seconds: float = Field(default=25, ge=1, le=60)
     runtime_seconds: float = Field(default=1100, ge=1, le=1150)
