@@ -44,3 +44,34 @@ numbers or entity-to-answer dictionaries. All cell candidates and citations come
 from the supplied run PDF. Data-derived evaluation outputs are stored outside
 this repository. Tests use invented numbers/entities except separate local
 report benchmarks. Do not commit reports, answer files or extracted caches.
+
+## V4 measured update
+
+The predeclared generated benchmark contains four one-page layouts: a native dense
+table, a scanned dense table, a scanned table with wrapped district labels, and a
+scanned dense table with wrapped labels. Each has two answerable questions and one
+absent-entity question. Seed 0 improved from 8/12 to 12/12 correct answers with
+physical-page checks; answerable questions improved from 4/8 to 8/8. Seed 19, first
+run after implementation, showed the same change. Incorrect non-abstaining answers
+were zero in both versions on these synthetic cases. This tests the same four
+layouts with different values, not unseen-layout or hidden-report performance.
+The ordinary benchmark did not need crop retries; its improvement comes from
+physical row grouping and header separation. A separate real OCR fault-injection
+test verifies recovery of a first-pass token spanning two numeric columns.
+
+The full native public-report output remained byte-identical to V3: 50 records,
+SHA256 2cbededae25551654e337b4770383a6de6f62d5da0a47518527a2373b283ddeb.
+Runtime was 64.16 seconds locally; 260/272 pages were indexed. No hidden scoring
+run or organizer Linux resource verification is claimed.
+
+For a broader diagnostic, physical pages 101 and 241 were rasterized at 144 DPI
+and each evaluated as a one-page scan against the public questions listing that
+source page. Page 101: 13/17 correct, three incorrect non-abstaining answers and
+one abstention. Page 241: 0/12 correct, twelve abstentions. V3 and V4 produced the
+same counts. These are deliberately degraded single-page tests, not the native
+public-report score; other listed source pages are absent in this diagnostic.
+Wrong but well-formed OCR digits remain a material risk. The conservative second
+pass does not verify every complete row and does not provide independent OCR
+agreement or calibrated confidence. Dense/category-heavy, faint, skewed or
+irregular tables remain unresolved. No claim is made that the Gemma prize is
+qualified for by this offline extraction work.

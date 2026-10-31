@@ -50,3 +50,34 @@ only, stopping on failure and validating the final answer and quotation. It is
 explicitly invoked and is not part of offline evaluation or normal unit tests.
 This version adds neither local model weights nor vision, retrieval changes,
 embeddings, vector databases, or automatic cloud fallback in the scorer.
+
+## V4 — physical row geometry and selective OCR recovery
+
+V4 addresses a measured failure in rasterized tables with wrapped entity names.
+Grid-line pixel runs are collapsed into physical boundaries before line removal.
+Only sufficiently spaced grids with at least four row and column lines activate
+this path. Detected body-row boundaries keep wrapped labels with their values;
+text above the physical grid is excluded from column headings. Numeric tokens
+must occupy separate expected numeric columns. Ambiguous tokens are rejected,
+never split into guessed digits.
+
+An incomplete body row can receive a second full-width row-strip OCR pass, capped
+at six attempts per page (validated maximum twelve, zero disables attempts).
+Recovery must populate all expected numeric columns, preserve entity-label tokens
+and agree with each unambiguous original numeric reading. Coordinates map back
+to the original physical page. Accepted words also rebuild prose blocks, avoiding
+stale first-pass numeric evidence alongside corrected table rows.
+
+The existing OCR subprocess is the single timeout owner: both passes share its
+25-second default cap and the ingestion deadline. An atomic full-pass checkpoint
+can survive a killed optional recovery pass. Crop-specific recognition failures
+are skipped. A first-pass timeout without a checkpoint still reports OCR timeout.
+No model, dependency, cloud call, solver rule or frontend answer contract changed.
+Cache fingerprints include V4 extraction revisions and recovery settings.
+
+The synthetic benchmark generates PDFs at runtime, outside the source package.
+Seed 0 was used for implementation; seed 19 was checked afterwards using the same
+layouts and different numbers/year. Neither is a representative held-out report
+benchmark. Recovery itself is exercised with actual OCR plus deliberate first-pass
+fault injection. Results on two rasterized organizer pages did not improve; this
+version must not be presented as solving dense scanned reports generally.
